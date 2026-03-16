@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ChecksStatus": {
+      "enum": [
+        "success",
+        "failure",
+        "pending",
+        "mixed",
+        "unknown"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "blueprint_hash": {
+      "type": "string"
+    },
+    "checks_status": {
+      "$ref": "#/definitions/ChecksStatus"
+    },
+    "files_count": {
+      "format": "uint32",
+      "minimum": 0.0,
+      "type": "integer"
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "seq": {
+      "format": "uint64",
+      "minimum": 0.0,
+      "type": "integer"
+    },
+    "symbols_count": {
+      "format": "uint32",
+      "minimum": 0.0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "blueprint_hash",
+    "checks_status",
+    "files_count",
+    "id",
+    "name",
+    "repo",
+    "seq",
+    "symbols_count"
+  ],
+  "title": "CitySummary",
+  "type": "object"
+}

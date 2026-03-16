@@ -1,0 +1,16 @@
+{
+  "name": "@city-building/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@city-building/renderer": "0.1.0",
+    "@city-building/shared": "0.1.0"
+  }
+}

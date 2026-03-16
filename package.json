@@ -1,0 +1,25 @@
+{
+  "name": "city-building",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/world-server",
+    "packages/github-action",
+    "packages/renderer",
+    "packages/web"
+  ],
+  "scripts": {
+    "generate:types": "cargo run -p city-building-schema --bin export-schema -- packages/shared/src/generated && node scripts/generate-types.mjs",
+    "generate:test-index": "node scripts/generate-test-case-index.mjs",
+    "test": "npm run test --workspaces",
+    "test:ci": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,343 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "CheckRun": {
+      "properties": {
+        "conclusion": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conclusion",
+        "name"
+      ],
+      "type": "object"
+    },
+    "Checks": {
+      "properties": {
+        "runs": {
+          "items": {
+            "$ref": "#/definitions/CheckRun"
+          },
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/definitions/ChecksStatus"
+        }
+      },
+      "required": [
+        "runs",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ChecksStatus": {
+      "enum": [
+        "success",
+        "failure",
+        "pending",
+        "mixed",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "DistrictHint": {
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DistrictStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "DistrictStyle": {
+      "enum": [
+        "commercial",
+        "residential",
+        "industrial"
+      ],
+      "type": "string"
+    },
+    "FileNode": {
+      "properties": {
+        "lang": {
+          "type": "string"
+        },
+        "symbols": {
+          "items": {
+            "$ref": "#/definitions/Symbol"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "lang",
+        "symbols"
+      ],
+      "type": "object"
+    },
+    "Hints": {
+      "additionalProperties": true,
+      "properties": {
+        "districts": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/DistrictHint"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "SourceInfo": {
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/SourceType"
+        }
+      },
+      "required": [
+        "branch",
+        "repo",
+        "sha",
+        "type"
+      ],
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "github-action",
+        "cli"
+      ],
+      "type": "string"
+    },
+    "Stats": {
+      "properties": {
+        "files": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "langs": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "symbols": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "langs",
+        "symbols"
+      ],
+      "type": "object"
+    },
+    "Symbol": {
+      "properties": {
+        "loc": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SymbolLocation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "members": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/SymbolMember"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/SymbolType"
+        },
+        "vis": {
+          "$ref": "#/definitions/Visibility"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "vis"
+      ],
+      "type": "object"
+    },
+    "SymbolLocation": {
+      "properties": {
+        "endLine": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "startLine": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "endLine",
+        "startLine"
+      ],
+      "type": "object"
+    },
+    "SymbolMember": {
+      "properties": {
+        "loc": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SymbolLocation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/SymbolType"
+        },
+        "vis": {
+          "$ref": "#/definitions/Visibility"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "vis"
+      ],
+      "type": "object"
+    },
+    "SymbolType": {
+      "enum": [
+        "class",
+        "function",
+        "method",
+        "interface",
+        "enum",
+        "variable"
+      ],
+      "type": "string"
+    },
+    "Visibility": {
+      "enum": [
+        "exported",
+        "public",
+        "private",
+        "protected",
+        "internal"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "checks": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Checks"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "edges": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "files": {
+      "additionalProperties": {
+        "$ref": "#/definitions/FileNode"
+      },
+      "type": "object"
+    },
+    "hash": {
+      "type": "string"
+    },
+    "hints": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Hints"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "$ref": "#/definitions/SourceInfo"
+    },
+    "stats": {
+      "$ref": "#/definitions/Stats"
+    },
+    "ts": {
+      "type": "string"
+    },
+    "v": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "edges",
+    "files",
+    "hash",
+    "source",
+    "stats",
+    "ts",
+    "v"
+  ],
+  "title": "CityBlueprint",
+  "type": "object"
+}
