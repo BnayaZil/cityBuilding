@@ -4,3 +4,6 @@ target/
 coverage/
 .DS_Store
 *.log
+.city.local.json
+.city-bootstrap-blueprint.json
+artifacts/visual-feedback/

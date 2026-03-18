@@ -8,6 +8,23 @@ on:
 jobs:
   contracts-and-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: citybuilding
+          POSTGRES_USER: city
+          POSTGRES_PASSWORD: city
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U city -d citybuilding"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://city:city@localhost:5432/citybuilding
+      MIGRATIONS_DIR: packages/world-server/migrations
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +38,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
       - name: Install dependencies
         run: npm ci
 
@@ -30,8 +50,23 @@ jobs:
       - name: Generate test-case traceability index
         run: npm run generate:test-index
 
+      - name: Check generated artifacts are committed
+        run: git diff --exit-code
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run type checks
+        run: npm run typecheck
+
       - name: Run Rust tests
         run: cargo test
+
+      - name: Run scanner schema validation check
+        run: npm run schema:check
+
+      - name: Run world-server DB migrations
+        run: npm run migrate --workspace @city-building/world-server
 
       - name: Run workspace tests
         run: npm test

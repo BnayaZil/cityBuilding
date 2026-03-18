@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: citybuilding
+      POSTGRES_USER: city
+      POSTGRES_PASSWORD: city
+    ports:
+      - "5432:5432"
+    volumes:
+      - citybuilding-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U city -d citybuilding"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  world-server:
+    image: node:22-alpine
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: >
+      sh -c "npm install &&
+      npm run generate:types &&
+      npm run build --workspace @city-building/web &&
+      npm run migrate --workspace @city-building/world-server &&
+      npm run dev --workspace @city-building/world-server"
+    environment:
+      DATABASE_URL: postgres://city:city@postgres:5432/citybuilding
+      WORLD_SERVER_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  citybuilding-postgres:
