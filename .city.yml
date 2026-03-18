@@ -1,0 +1,16 @@
+version: 1
+ignore:
+  - node_modules
+  - target
+  - dist
+  - .git
+  - .cursor
+  - .city-bootstrap-blueprint.json
+hints:
+  districts:
+    - path: crates
+      label: Rust Core
+      style: industrial
+    - path: packages
+      label: Web Platform
+      style: commercial

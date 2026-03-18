@@ -4,7 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 
 fn main() {
-    let out_dir = env::args().nth(1).unwrap_or_else(|| "schema-out".to_string());
+    let out_dir = env::args()
+        .nth(1)
+        .unwrap_or_else(|| "schema-out".to_string());
     let out_path = PathBuf::from(out_dir);
     fs::create_dir_all(&out_path).expect("failed to create output directory");
 
