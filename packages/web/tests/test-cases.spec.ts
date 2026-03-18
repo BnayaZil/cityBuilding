@@ -54,25 +54,47 @@ function runCase(caseId: string): void {
     case "6.1.6":
       expect(routeToPath({ kind: "path", cityId: "c1", path: "src/a.ts" })).toBe("/cities/c1/src/a.ts");
       return;
+    case "6.1.4":
+    case "6.1.5":
+    case "6.1.7":
+      expect(parseRoute("/cities")).toEqual({ kind: "landing" });
+      return;
+    case "6.2.1":
+      expect(createAuthState("token").token).toBe("token");
+      return;
     case "6.2.2":
       expect(isAuthenticated(createAuthState("token"))).toBe(true);
       return;
     case "6.2.3":
       expect(isAuthenticated(createAuthState(null))).toBe(false);
       return;
+    case "6.2.4":
+    case "6.2.5":
+    case "6.2.6":
+    case "6.2.7":
+      expect(isAuthenticated(createAuthState(""))).toBe(false);
+      return;
+    case "6.3.1": {
+      const app = mountWebApp({} as HTMLElement, "/", { autoLoad: false });
+      expect(app.renderer.getCurrentView()).toEqual({ level: "world", worldId: "default" });
+      return;
+    }
     case "6.3.2":
-    case "6.4.1": {
-      const app = mountWebApp({} as HTMLElement, "/cities/c1");
+    case "6.3.3":
+    case "6.3.4":
+    case "6.4.1":
+    case "6.4.2":
+    case "6.4.3": {
+      const app = mountWebApp({} as HTMLElement, "/cities/c1", { autoLoad: false });
       expect(app.renderer.getCurrentView()).toEqual({ level: "city", cityId: "c1" });
+      app.navigate("/cities/c1/src");
+      expect(app.renderer.getCurrentView()).toEqual({ level: "district", cityId: "c1", path: "src" });
       return;
     }
     case "6.4.4":
       expect(parseRoute("/api/v1/health")).toEqual({ kind: "landing" });
       return;
-    default: {
-      const app = mountWebApp({} as HTMLElement, "/");
-      expect(app.renderer.getCurrentView().level).toBe("world");
-      return;
-    }
+    default:
+      throw new Error(`Unhandled web case ${caseId}`);
   }
 }

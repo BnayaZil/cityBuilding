@@ -6,8 +6,11 @@
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "build": "vite build",
+    "dev": "vite",
+    "test": "vitest run",
+    "verify:3d": "vitest run tests/scene-layout.spec.ts",
+    "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@city-building/renderer": "0.1.0",
