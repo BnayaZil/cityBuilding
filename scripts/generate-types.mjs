@@ -18,5 +18,16 @@ const summaryTs = await compile(summarySchema, "CitySummary", {
   style: { singleQuote: true },
 });
 
-const output = `${blueprintTs}\n${summaryTs}\n`;
+const seenTypeAliases = new Set(
+  Array.from(blueprintTs.matchAll(/^export type ([A-Za-z0-9_]+)\s*=/gm)).map((match) => match[1]),
+);
+const dedupedSummaryTs = summaryTs.replace(/^export type ([A-Za-z0-9_]+)\s*=.*;\n?/gm, (full, name) => {
+  if (seenTypeAliases.has(name)) {
+    return "";
+  }
+  seenTypeAliases.add(name);
+  return full;
+});
+
+const output = `${blueprintTs}\n${dedupedSummaryTs}\n`;
 await writeFile(path.resolve("packages/shared/src/types.generated.ts"), output, "utf8");

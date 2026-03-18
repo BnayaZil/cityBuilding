@@ -82,7 +82,6 @@ export interface Stats {
   [k: string]: unknown;
 }
 
-export type ChecksStatus = 'success' | 'failure' | 'pending' | 'mixed' | 'unknown';
 
 export interface CitySummary {
   blueprint_hash: string;
