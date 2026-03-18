@@ -7,7 +7,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "dev": "npm run build && node dist/index.js",
+    "start": "node dist/index.js",
+    "migrate": "npm run build && node dist/db/run-migrations.js",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@city-building/shared": "0.1.0",

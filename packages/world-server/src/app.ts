@@ -1,129 +1,34 @@
 import express, { type Request, type Response } from "express";
-import type { CityBlueprint, CitySummary, ChecksStatus, WorldResponse } from "@city-building/shared";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import type { CityBlueprint, ChecksStatus, WorldResponse } from "@city-building/shared";
+import { NoopPersistence, type StatePersistence } from "./persistence.js";
+import { validateBlueprintPayload } from "./blueprint-validator.js";
+import {
+  citySummary,
+  createInitialState,
+  nextId,
+  type ApiKeyRecord,
+  type MemoryState,
+  type Role,
+} from "./state.js";
 
-type Role = "owner" | "admin" | "member";
-
-interface User {
-  id: string;
-  username: string;
-  email?: string;
-  password: string;
-}
-
-interface TeamInvite {
-  code: string;
-  teamId: string;
-  role: Role;
-  uses: number;
-  maxUses: number | null;
-  expiresAt: number | null;
-}
-
-interface ApiKeyRecord {
-  id: string;
-  key: string;
-  teamId: string;
-  cityIds: string[];
-  revoked: boolean;
-  lastUsed: number | null;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  members: Record<string, Role>;
-  invites: Record<string, TeamInvite>;
-  apiKeys: Record<string, ApiKeyRecord>;
-}
-
-interface EventRecord {
-  seq: number;
-  sha: string;
-  blueprint_hash: string;
-  source_type: string;
-  blueprint: CityBlueprint;
-  created_at: string;
-}
-
-interface Snapshot {
-  seq: number;
-  blueprint_hash: string;
-  checks_status: ChecksStatus;
-  files_count: number;
-  symbols_count: number;
-  blueprint: CityBlueprint;
-}
-
-interface CityRecord {
-  id: string;
-  world_id: string;
-  team_id: string;
-  repo: string;
-  name: string;
-  events: EventRecord[];
-  snapshot: Snapshot | null;
-}
-
-interface WorldRecord {
-  id: string;
-  name: string;
-  description?: string;
-  is_public: boolean;
-}
-
-interface ConnectionRecord {
-  id: string;
-  world_id: string;
-  from_city_id: string;
-  to_city_id: string;
-  label?: string;
-}
-
-interface FederationLink {
-  id: string;
-  remote_server_url: string;
-  remote_world_id?: string;
-  remote_world_name?: string;
-  status: "pending" | "active" | "rejected";
-}
-
-interface MemoryState {
-  users: Record<string, User>;
-  teams: Record<string, Team>;
-  worlds: Record<string, WorldRecord>;
-  cities: Record<string, CityRecord>;
-  connections: Record<string, ConnectionRecord>;
-  federationLinks: Record<string, FederationLink>;
-}
-
-let idCounter = 1;
-function nextId(prefix: string): string {
-  const value = `${prefix}-${idCounter}`;
-  idCounter += 1;
-  return value;
+export interface AppOptions {
+  state?: MemoryState;
+  persistence?: StatePersistence;
+  staticRoot?: string;
+  enableSpaFallback?: boolean;
 }
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
-function newState(): MemoryState {
-  const defaultWorld: WorldRecord = {
-    id: "default",
-    name: "Default World",
-    is_public: true,
-  };
-  return {
-    users: {},
-    teams: {},
-    worlds: { [defaultWorld.id]: defaultWorld },
-    cities: {},
-    connections: {},
-    federationLinks: {},
-  };
+function inferChecksStatus(blueprint: CityBlueprint): ChecksStatus {
+  return blueprint.checks?.status ?? "unknown";
 }
 
-function userFromToken(req: Request, state: MemoryState): User | null {
+function userFromToken(req: Request, state: MemoryState) {
   const auth = req.header("authorization");
   if (!auth || !auth.toLowerCase().startsWith("bearer ")) {
     return null;
@@ -141,35 +46,6 @@ function forbidden(res: Response): void {
   res.status(403).json({ error: "forbidden" });
 }
 
-function citySummary(city: CityRecord): CitySummary {
-  if (!city.snapshot) {
-    return {
-      id: city.id,
-      name: city.name,
-      repo: city.repo,
-      seq: 0,
-      blueprint_hash: "sha256:empty",
-      checks_status: "unknown",
-      files_count: 0,
-      symbols_count: 0,
-    };
-  }
-  return {
-    id: city.id,
-    name: city.name,
-    repo: city.repo,
-    seq: city.snapshot.seq,
-    blueprint_hash: city.snapshot.blueprint_hash,
-    checks_status: city.snapshot.checks_status,
-    files_count: city.snapshot.files_count,
-    symbols_count: city.snapshot.symbols_count,
-  };
-}
-
-function inferChecksStatus(blueprint: CityBlueprint): ChecksStatus {
-  return blueprint.checks?.status ?? "unknown";
-}
-
 function apiKeyFromRequest(req: Request, state: MemoryState): ApiKeyRecord | null {
   const key = req.header("x-api-key");
   if (!key) {
@@ -185,15 +61,36 @@ function apiKeyFromRequest(req: Request, state: MemoryState): ApiKeyRecord | nul
   return null;
 }
 
-export function createApp(state: MemoryState = newState()) {
+export function createApp(options: AppOptions = {}) {
+  const persistence = options.persistence ?? new NoopPersistence();
+  const state = options.state ?? createInitialState();
+  const staticRoot = options.staticRoot;
+
   const app = express();
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
   app.use(express.json({ limit: "5mb" }));
 
-  app.get("/api/v1/health", (_req, res) => {
-    res.status(200).json({ status: "ok" });
+  const persistState = async () => {
+    await persistence.saveState(state);
+  };
+
+  app.get("/api/v1/health", async (_req, res) => {
+    const healthy = await persistence.healthCheck();
+    if (!healthy) {
+      return res.status(503).json({ status: "unhealthy", reason: "database" });
+    }
+    return res.status(200).json({ status: "ok" });
   });
 
-  app.post("/api/v1/auth/register", (req, res) => {
+  app.post("/api/v1/auth/register", async (req, res) => {
     const { username, email, password } = req.body ?? {};
     if (!username || !password) {
       return res.status(400).json({ error: "validation_error" });
@@ -204,8 +101,9 @@ export function createApp(state: MemoryState = newState()) {
     if (email && Object.values(state.users).some((u) => u.email === email)) {
       return res.status(409).json({ error: "email_exists" });
     }
-    const id = nextId("user");
+    const id = nextId(state, "user");
     state.users[id] = { id, username, email, password };
+    await persistState();
     return res.status(201).json({ token: `token-${id}`, user: { id, username, email } });
   });
 
@@ -218,7 +116,7 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json({ token: `token-${user.id}`, user: { id: user.id, username: user.username } });
   });
 
-  app.post("/api/v1/teams", (req, res) => {
+  app.post("/api/v1/teams", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -227,7 +125,7 @@ export function createApp(state: MemoryState = newState()) {
     if (!name) {
       return res.status(400).json({ error: "validation_error" });
     }
-    const id = nextId("team");
+    const id = nextId(state, "team");
     state.teams[id] = {
       id,
       name,
@@ -235,7 +133,19 @@ export function createApp(state: MemoryState = newState()) {
       invites: {},
       apiKeys: {},
     };
+    await persistState();
     return res.status(201).json({ id, name });
+  });
+
+  app.get("/api/v1/teams", (req, res) => {
+    const user = userFromToken(req, state);
+    if (!user) {
+      return unauthorized(res);
+    }
+    const teams = Object.values(state.teams)
+      .filter((team) => team.members[user.id])
+      .map((team) => ({ id: team.id, name: team.name, role: team.members[user.id] }));
+    return res.status(200).json(teams);
   });
 
   app.get("/api/v1/teams/:id", (req, res) => {
@@ -257,7 +167,7 @@ export function createApp(state: MemoryState = newState()) {
     });
   });
 
-  app.post("/api/v1/teams/:id/invites", (req, res) => {
+  app.post("/api/v1/teams/:id/invites", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -270,8 +180,8 @@ export function createApp(state: MemoryState = newState()) {
     if (!role || (role !== "owner" && role !== "admin")) {
       return forbidden(res);
     }
-    const code = `invite-${nextId("code")}`;
-    const invite: TeamInvite = {
+    const code = `invite-${nextId(state, "code")}`;
+    const invite = {
       code,
       teamId: team.id,
       role: (req.body?.role as Role | undefined) ?? "member",
@@ -280,10 +190,27 @@ export function createApp(state: MemoryState = newState()) {
       expiresAt: req.body?.expires_at ? Date.parse(req.body.expires_at) : null,
     };
     team.invites[code] = invite;
+    await persistState();
     return res.status(201).json({ code });
   });
 
-  app.post("/api/v1/teams/join/:code", (req, res) => {
+  app.get("/api/v1/teams/:id/invites", (req, res) => {
+    const user = userFromToken(req, state);
+    if (!user) {
+      return unauthorized(res);
+    }
+    const team = state.teams[req.params.id];
+    if (!team) {
+      return res.status(404).json({ error: "not_found" });
+    }
+    const role = team.members[user.id];
+    if (!role || (role !== "owner" && role !== "admin")) {
+      return forbidden(res);
+    }
+    return res.status(200).json(Object.values(team.invites));
+  });
+
+  app.post("/api/v1/teams/join/:code", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -305,10 +232,11 @@ export function createApp(state: MemoryState = newState()) {
     }
     team.members[user.id] = invite.role;
     invite.uses += 1;
+    await persistState();
     return res.status(200).json({ ok: true, team_id: team.id, role: invite.role });
   });
 
-  app.post("/api/v1/teams/:id/api-keys", (req, res) => {
+  app.post("/api/v1/teams/:id/api-keys", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -317,12 +245,11 @@ export function createApp(state: MemoryState = newState()) {
     if (!team) {
       return res.status(404).json({ error: "not_found" });
     }
-    const memberRole = team.members[user.id];
-    if (!memberRole) {
+    if (!team.members[user.id]) {
       return forbidden(res);
     }
-    const keyId = nextId("key");
-    const keyValue = `city_pk_${nextId("token")}`;
+    const keyId = nextId(state, "key");
+    const keyValue = `city_pk_${nextId(state, "token")}`;
     team.apiKeys[keyId] = {
       id: keyId,
       key: keyValue,
@@ -331,6 +258,7 @@ export function createApp(state: MemoryState = newState()) {
       revoked: false,
       lastUsed: null,
     };
+    await persistState();
     return res.status(201).json({ id: keyId, key: keyValue, city_ids: team.apiKeys[keyId].cityIds });
   });
 
@@ -355,7 +283,7 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json(keys);
   });
 
-  app.post("/api/v1/api-keys/:id/revoke", (req, res) => {
+  app.post("/api/v1/api-keys/:id/revoke", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -366,6 +294,7 @@ export function createApp(state: MemoryState = newState()) {
           return forbidden(res);
         }
         team.apiKeys[req.params.id].revoked = true;
+        await persistState();
         return res.status(200).json({ ok: true });
       }
     }
@@ -379,7 +308,7 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json(worlds);
   });
 
-  app.post("/api/v1/worlds", (req, res) => {
+  app.post("/api/v1/worlds", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -391,8 +320,9 @@ export function createApp(state: MemoryState = newState()) {
     if (Object.values(state.worlds).some((w) => w.name === name)) {
       return res.status(409).json({ error: "world_exists" });
     }
-    const id = nextId("world");
+    const id = nextId(state, "world");
     state.worlds[id] = { id, name, description, is_public: is_public !== false };
+    await persistState();
     return res.status(201).json(state.worlds[id]);
   });
 
@@ -411,7 +341,7 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json(response);
   });
 
-  app.post("/api/v1/cities", (req, res) => {
+  app.post("/api/v1/cities", async (req, res) => {
     const user = userFromToken(req, state);
     if (!user) {
       return unauthorized(res);
@@ -432,7 +362,7 @@ export function createApp(state: MemoryState = newState()) {
     if (duplicate) {
       return res.status(409).json({ error: "city_exists" });
     }
-    const id = nextId("city");
+    const id = nextId(state, "city");
     state.cities[id] = {
       id,
       world_id,
@@ -442,6 +372,7 @@ export function createApp(state: MemoryState = newState()) {
       events: [],
       snapshot: null,
     };
+    await persistState();
     return res.status(201).json(state.cities[id]);
   });
 
@@ -459,12 +390,11 @@ export function createApp(state: MemoryState = newState()) {
     });
   });
 
-  app.post("/api/v1/cities/:id/push", (req, res) => {
+  app.post("/api/v1/cities/:id/push", async (req, res) => {
     const city = state.cities[req.params.id];
     if (!city) {
       return res.status(404).json({ error: "city_not_found" });
     }
-
     const team = state.teams[city.team_id];
     const apiKey = apiKeyFromRequest(req, state);
     if (!apiKey || apiKey.teamId !== team.id || apiKey.revoked) {
@@ -473,16 +403,16 @@ export function createApp(state: MemoryState = newState()) {
     if (apiKey.cityIds.length > 0 && !apiKey.cityIds.includes(city.id)) {
       return forbidden(res);
     }
-
-    const blueprint: CityBlueprint = req.body;
-    if (!blueprint || typeof blueprint !== "object" || !blueprint.v || !blueprint.stats || !blueprint.hash) {
-      return res.status(400).json({ error: "schema_validation_error" });
+    const candidate = req.body;
+    const validationIssues = validateBlueprintPayload(candidate);
+    if (validationIssues.length > 0) {
+      return res.status(400).json({ error: "schema_validation_error", details: validationIssues });
     }
-
+    const blueprint = candidate as CityBlueprint;
     apiKey.lastUsed = Date.now();
 
     const seq = city.events.length + 1;
-    const event: EventRecord = {
+    const event = {
       seq,
       sha: blueprint.source?.sha ?? "unknown",
       blueprint_hash: blueprint.hash,
@@ -499,6 +429,7 @@ export function createApp(state: MemoryState = newState()) {
       symbols_count: blueprint.stats.symbols,
       blueprint,
     };
+    await persistState();
     return res.status(201).json({ ok: true, seq, blueprint_hash: blueprint.hash });
   });
 
@@ -529,7 +460,7 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json(event);
   });
 
-  app.post("/api/v1/connections", (req, res) => {
+  app.post("/api/v1/connections", async (req, res) => {
     const { from_city_id, to_city_id, label } = req.body ?? {};
     const from = state.cities[from_city_id];
     const to = state.cities[to_city_id];
@@ -545,7 +476,7 @@ export function createApp(state: MemoryState = newState()) {
     if (dup) {
       return res.status(409).json({ error: "connection_exists" });
     }
-    const id = nextId("conn");
+    const id = nextId(state, "conn");
     state.connections[id] = {
       id,
       world_id: from.world_id,
@@ -553,6 +484,7 @@ export function createApp(state: MemoryState = newState()) {
       to_city_id,
       label,
     };
+    await persistState();
     return res.status(201).json(state.connections[id]);
   });
 
@@ -561,12 +493,12 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json(connections);
   });
 
-  app.post("/api/v1/federation/links", (req, res) => {
+  app.post("/api/v1/federation/links", async (req, res) => {
     const { remote_server_url, remote_world_id, remote_world_name } = req.body ?? {};
     if (!remote_server_url) {
       return res.status(400).json({ error: "validation_error" });
     }
-    const id = nextId("federation");
+    const id = nextId(state, "federation");
     state.federationLinks[id] = {
       id,
       remote_server_url,
@@ -574,6 +506,7 @@ export function createApp(state: MemoryState = newState()) {
       remote_world_name,
       status: "pending",
     };
+    await persistState();
     return res.status(201).json(state.federationLinks[id]);
   });
 
@@ -581,10 +514,55 @@ export function createApp(state: MemoryState = newState()) {
     return res.status(200).json(Object.values(state.federationLinks));
   });
 
+  if (staticRoot) {
+    app.use(express.static(staticRoot));
+    if (options.enableSpaFallback) {
+      app.get(/^\/(?!api\/).*/, (_req, res) => {
+        const indexPath = path.join(staticRoot, "index.html");
+        if (existsSync(indexPath)) {
+          return res.sendFile(indexPath);
+        }
+        return res.status(404).send("index.html not found");
+      });
+    }
+  }
+
   return app;
 }
 
-export function startServer(port = 3000) {
-  const app = createApp();
-  return app.listen(port);
+export async function createAppFromEnv() {
+  const databaseUrl = process.env.DATABASE_URL;
+  const migrationsDir = process.env.MIGRATIONS_DIR ?? path.resolve(process.cwd(), "packages/world-server/migrations");
+  let persistence: StatePersistence = new NoopPersistence();
+  let state = createInitialState();
+
+  if (databaseUrl) {
+    const { PostgresStateStore } = await import("./db/postgres-state-store.js");
+    const pgStore = new PostgresStateStore(databaseUrl, migrationsDir);
+    await pgStore.runMigrations();
+    const loaded = await pgStore.loadState();
+    if (loaded) {
+      state = loaded;
+    }
+    persistence = pgStore;
+  }
+
+  const staticRootCandidate = process.env.WEB_DIST_DIR ?? path.resolve(process.cwd(), "packages/web/dist");
+  const staticRoot = existsSync(staticRootCandidate) ? staticRootCandidate : undefined;
+  const app = createApp({
+    state,
+    persistence,
+    staticRoot,
+    enableSpaFallback: true,
+  });
+  return { app, persistence };
+}
+
+export async function startServer(port = 3000) {
+  const { app, persistence } = await createAppFromEnv();
+  const server = app.listen(port);
+  server.on("close", () => {
+    void persistence.close();
+  });
+  return server;
 }
