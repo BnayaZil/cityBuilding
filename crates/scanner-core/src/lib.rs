@@ -202,12 +202,12 @@ fn detect_lang(path: &Path) -> Option<&'static str> {
 fn extract_symbols(lang: &str, content: &str) -> Vec<Symbol> {
     let class_re =
         Regex::new(r"^\s*(?:export\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
-    let iface_re = Regex::new(r"^\s*(?:export\s+)?interface\s+([A-Za-z_][A-Za-z0-9_]*)")
-        .expect("valid regex");
+    let iface_re =
+        Regex::new(r"^\s*(?:export\s+)?interface\s+([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
     let enum_re =
         Regex::new(r"^\s*(?:export\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
-    let fn_re = Regex::new(r"^\s*(?:export\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)")
-        .expect("valid regex");
+    let fn_re =
+        Regex::new(r"^\s*(?:export\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
     let var_re = Regex::new(r"^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)")
         .expect("valid regex");
 
@@ -221,14 +221,12 @@ fn extract_symbols(lang: &str, content: &str) -> Vec<Symbol> {
         Regex::new(r"^\s*(pub\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
     let rust_fn_re =
         Regex::new(r"^\s*(pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\(").expect("valid regex");
-    let java_cs_class_re = Regex::new(
-        r"^\s*(public|private|protected|internal)?\s*class\s+([A-Za-z_][A-Za-z0-9_]*)",
-    )
-    .expect("valid regex");
-    let method_re = Regex::new(
-        r"^\s*(public|private|protected|internal|pub)?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(",
-    )
-    .expect("valid regex");
+    let java_cs_class_re =
+        Regex::new(r"^\s*(public|private|protected|internal)?\s*class\s+([A-Za-z_][A-Za-z0-9_]*)")
+            .expect("valid regex");
+    let method_re =
+        Regex::new(r"^\s*(public|private|protected|internal|pub)?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+            .expect("valid regex");
 
     let mut symbols: Vec<Symbol> = Vec::new();
     let mut current_class_idx: Option<usize> = None;
@@ -486,8 +484,8 @@ fn ts_like_visibility(line: &str) -> Visibility {
 
 fn extract_imports(lang: &str, content: &str) -> Vec<String> {
     let mut imports = Vec::new();
-    let ts_import_re = Regex::new(r#"^\s*(?:import|export)\b.*from\s+['"]([^'"]+)['"]"#)
-        .expect("valid regex");
+    let ts_import_re =
+        Regex::new(r#"^\s*(?:import|export)\b.*from\s+['"]([^'"]+)['"]"#).expect("valid regex");
     let ts_dyn_import_re = Regex::new(r#"import\(\s*['"]([^'"]+)['"]\s*\)"#).expect("valid regex");
     let py_import_re =
         Regex::new(r"^\s*from\s+([A-Za-z0-9_\.]+)\s+import\s+").expect("valid regex");
@@ -595,7 +593,11 @@ fn compute_blueprint_hash(
         stats: &'a Stats,
     }
 
-    let payload = HashPayload { files, edges, stats };
+    let payload = HashPayload {
+        files,
+        edges,
+        stats,
+    };
     let bytes = serde_json::to_vec(&payload)?;
     let mut hasher = Sha256::new();
     hasher.update(bytes);

@@ -1,4 +1,5 @@
 use city_building_scanner_core::{scan_path, ScanOptions};
+use city_building_schema::city_blueprint_json_schema;
 use city_building_schema::{SymbolType, Visibility};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,10 +9,9 @@ const CASE_IDS: &[&str] = &[
     "1.1.1", "1.1.2", "1.1.3", "1.1.4", "1.1.5", "1.1.6", "1.1.7", "1.1.8", "1.1.9", "1.1.10",
     "1.1.11", "1.1.12", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.7", "1.2.8",
     "1.2.9", "1.2.10", "1.2.11", "1.2.12", "1.2.13", "1.2.14", "1.2.15", "1.2.16", "1.2.17",
-    "1.2.18", "1.2.19", "1.2.20", "1.2.21", "1.2.22", "1.3.1", "1.3.2", "1.3.3", "1.3.4",
-    "1.3.5", "1.3.6", "1.3.7", "1.3.8", "1.3.9", "1.3.10", "1.3.11", "1.3.12", "1.4.1", "1.4.2",
-    "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9", "1.4.10", "1.4.11", "1.4.12",
-    "1.4.13",
+    "1.2.18", "1.2.19", "1.2.20", "1.2.21", "1.2.22", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5",
+    "1.3.6", "1.3.7", "1.3.8", "1.3.9", "1.3.10", "1.3.11", "1.3.12", "1.4.1", "1.4.2", "1.4.3",
+    "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9", "1.4.10", "1.4.11", "1.4.12", "1.4.13",
 ];
 
 #[test]
@@ -24,17 +24,28 @@ fn scanner_1x_cases_are_executable() {
 fn run_case(case_id: &str) -> anyhow::Result<()> {
     match case_id {
         "1.1.1" => case_empty_directory(),
+        "1.1.2" | "1.1.3" | "1.1.4" | "1.1.6" | "1.1.7" | "1.1.8" | "1.1.9" | "1.1.10"
+        | "1.1.11" | "1.1.12" => case_fixture_scan_has_expected_file_tree(),
         "1.1.5" => case_ignore_rules_respected(),
         "1.2.1" => case_exported_class(),
         "1.2.2" => case_class_with_methods(),
+        "1.2.3" | "1.2.4" | "1.2.5" | "1.2.6" | "1.2.7" | "1.2.8" | "1.2.9" | "1.2.10"
+        | "1.2.11" | "1.2.12" | "1.2.13" | "1.2.14" | "1.2.15" | "1.2.16" | "1.2.17" | "1.2.18"
+        | "1.2.19" | "1.2.20" => case_fixture_symbols_have_required_shape(),
         "1.2.21" => case_symbol_location_present(),
         "1.2.22" => case_symbol_location_optional_contract(),
         "1.3.1" => case_basic_import_edge(),
+        "1.3.2" | "1.3.3" | "1.3.4" | "1.3.5" | "1.3.6" | "1.3.7" | "1.3.8" | "1.3.9"
+        | "1.3.10" | "1.3.11" | "1.3.12" => case_fixture_edges_have_no_self_loops(),
         "1.4.1" => case_deterministic_output(),
+        "1.4.2" | "1.4.3" | "1.4.5" | "1.4.6" | "1.4.7" | "1.4.8" | "1.4.10" | "1.4.11" => {
+            case_blueprint_contract_basics()
+        }
         "1.4.4" => case_hash_ignores_timestamp(),
+        "1.4.12" => case_output_matches_city_blueprint_schema(),
         "1.4.9" => case_hints_contract_preserved(),
         "1.4.13" => case_invalid_district_hint_fails(),
-        _ => case_smoke_scan_fixture(),
+        _ => anyhow::bail!("unhandled scanner case id: {case_id}"),
     }
 }
 
@@ -45,9 +56,36 @@ fn fixture_dir() -> PathBuf {
         .join("basic")
 }
 
-fn case_smoke_scan_fixture() -> anyhow::Result<()> {
+fn case_fixture_scan_has_expected_file_tree() -> anyhow::Result<()> {
     let blueprint = scan_path(fixture_dir(), ScanOptions::default())?;
-    assert!(!blueprint.v.is_empty());
+    assert!(blueprint.files.contains_key("src/index.ts"));
+    assert!(blueprint.files.contains_key("src/services/auth.service.ts"));
+    assert!(blueprint.stats.files >= 3);
+    Ok(())
+}
+
+fn case_fixture_symbols_have_required_shape() -> anyhow::Result<()> {
+    let blueprint = scan_path(fixture_dir(), ScanOptions::default())?;
+    let auth_symbols = &blueprint.files["src/services/auth.service.ts"].symbols;
+    assert!(!auth_symbols.is_empty());
+    for symbol in auth_symbols {
+        assert!(!symbol.name.is_empty());
+        assert!(matches!(
+            symbol.symbol_type,
+            SymbolType::Class
+                | SymbolType::Function
+                | SymbolType::Method
+                | SymbolType::Interface
+                | SymbolType::Enum
+                | SymbolType::Variable
+        ));
+    }
+    Ok(())
+}
+
+fn case_fixture_edges_have_no_self_loops() -> anyhow::Result<()> {
+    let blueprint = scan_path(fixture_dir(), ScanOptions::default())?;
+    assert!(blueprint.edges.iter().all(|edge| edge[0] != edge[1]));
     Ok(())
 }
 
@@ -63,7 +101,10 @@ fn case_empty_directory() -> anyhow::Result<()> {
 fn case_ignore_rules_respected() -> anyhow::Result<()> {
     let dir = tempdir()?;
     fs::create_dir_all(dir.path().join("node_modules"))?;
-    fs::write(dir.path().join("node_modules").join("ignored.ts"), "export const x = 1;")?;
+    fs::write(
+        dir.path().join("node_modules").join("ignored.ts"),
+        "export const x = 1;",
+    )?;
     fs::write(dir.path().join("keep.ts"), "export const ok = 1;")?;
     fs::write(
         dir.path().join(".city.yml"),
@@ -171,6 +212,28 @@ fn case_hash_ignores_timestamp() -> anyhow::Result<()> {
         },
     )?;
     assert_eq!(a.hash, b.hash);
+    Ok(())
+}
+
+fn case_blueprint_contract_basics() -> anyhow::Result<()> {
+    let blueprint = scan_path(fixture_dir(), ScanOptions::default())?;
+    assert_eq!(blueprint.v, "1.0.0");
+    assert!(blueprint.hash.starts_with("sha256:"));
+    assert_eq!(blueprint.stats.files as usize, blueprint.files.len());
+    Ok(())
+}
+
+#[test]
+fn case_output_matches_city_blueprint_schema() -> anyhow::Result<()> {
+    let blueprint = scan_path(fixture_dir(), ScanOptions::default())?;
+    let schema = city_blueprint_json_schema();
+    let compiled = jsonschema::validator_for(&schema)?;
+    let as_json = serde_json::to_value(&blueprint)?;
+    let is_valid = compiled.is_valid(&as_json);
+    assert!(
+        is_valid,
+        "scanner output must validate against CityBlueprint schema"
+    );
     Ok(())
 }
 

@@ -17,5 +17,6 @@ sha2.workspace = true
 walkdir.workspace = true
 
 [dev-dependencies]
+jsonschema.workspace = true
 serde_json.workspace = true
 tempfile = "3"
