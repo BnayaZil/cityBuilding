@@ -17,10 +17,18 @@ const shouldBootstrap = parseBoolean(process.env.VISUAL_BOOTSTRAP, true);
 const bootstrapRepo = process.env.CITY_BOOTSTRAP_REPO ?? `local/cityBuilding-visual-${Date.now()}`;
 const requireWebgl = parseBoolean(process.env.REQUIRE_WEBGL, true);
 const headlessBrowser = parseBoolean(process.env.SCREENSHOT_HEADLESS, true);
+const captureCityAngles = parseBoolean(process.env.CAPTURE_CITY_ANGLES, true);
 const renderDebounceMs = parsePositiveInt(process.env.RENDER_DEBOUNCE_MS, 1_800);
 const renderStabilityIntervalMs = parsePositiveInt(process.env.RENDER_STABILITY_INTERVAL_MS, 320);
 const renderStableSamples = parsePositiveInt(process.env.RENDER_STABLE_SAMPLES, 3);
 const renderStabilityTimeoutMs = parsePositiveInt(process.env.RENDER_STABILITY_TIMEOUT_MS, 9_000);
+
+const CITY_ANGLE_PRESETS = [
+  { name: "orbit-right", dragXRatio: 0.34, dragYRatio: 0, wheelDeltaY: 0 },
+  { name: "orbit-left", dragXRatio: -0.34, dragYRatio: 0, wheelDeltaY: 0 },
+  { name: "tilt-down", dragXRatio: 0.1, dragYRatio: -0.26, wheelDeltaY: 0 },
+  { name: "close-up", dragXRatio: 0.2, dragYRatio: -0.12, wheelDeltaY: -480 },
+];
 
 const worldScreenshotPath = path.join(outputDir, "world.png");
 const cityScreenshotPath = path.join(outputDir, "city.png");
@@ -42,6 +50,7 @@ const manifestPath = path.join(outputDir, "manifest.json");
  *   SCREENSHOT_TIMEOUT_MS=45000
  *   REQUIRE_WEBGL=true
  *   SCREENSHOT_HEADLESS=true
+ *   CAPTURE_CITY_ANGLES=true
  *   RENDER_DEBOUNCE_MS=1800
  *   RENDER_STABILITY_INTERVAL_MS=320
  *   RENDER_STABLE_SAMPLES=3
@@ -305,6 +314,33 @@ async function waitForCityRendererReady(page, webglWarnings) {
   return finalStage;
 }
 
+async function openCityStage(page, cityUrl, webglWarnings) {
+  await page.goto(cityUrl, { waitUntil: "networkidle" });
+  await page.waitForSelector("#cb-three-stage", { state: "visible" });
+  await page.waitForSelector("#cb-three-stage canvas", { state: "visible" });
+  return waitForCityRendererReady(page, webglWarnings);
+}
+
+async function orbitCityStage(page, preset) {
+  const stage = page.locator("#cb-three-stage");
+  const bounds = await stage.boundingBox();
+  if (!bounds) {
+    throw new Error(`Cannot apply camera preset "${preset.name}": stage bounds unavailable`);
+  }
+  const startX = bounds.x + bounds.width * 0.52;
+  const startY = bounds.y + bounds.height * 0.56;
+  const endX = startX + bounds.width * preset.dragXRatio;
+  const endY = startY + bounds.height * preset.dragYRatio;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(endX, endY, { steps: 26 });
+  await page.mouse.up();
+  if (preset.wheelDeltaY !== 0) {
+    await page.mouse.move(startX, startY);
+    await page.mouse.wheel(0, preset.wheelDeltaY);
+  }
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
 
@@ -380,13 +416,24 @@ async function main() {
 
       const cityUrl = routeUrl(`/cities/${encodeURIComponent(cityId)}`);
       console.log(`[capture:3d] Capturing city screenshot (${cityUrl})...`);
-      await page.goto(cityUrl, { waitUntil: "networkidle" });
-      await page.waitForSelector("#cb-three-stage", { state: "visible" });
-      await page.waitForSelector("#cb-three-stage canvas", { state: "visible" });
-      const stageInfo = await waitForCityRendererReady(page, webglWarnings);
+      const stageInfo = await openCityStage(page, cityUrl, webglWarnings);
       await waitForVisualSettle(page, "#cb-three-stage", "City stage");
       await page.screenshot({ path: cityScreenshotPath, fullPage: true });
       await page.locator("#cb-three-stage").screenshot({ path: cityStageScreenshotPath });
+
+      const cityAngleScreenshots = {};
+      if (captureCityAngles) {
+        for (const preset of CITY_ANGLE_PRESETS) {
+          console.log(`[capture:3d] Capturing city angle (${preset.name})...`);
+          await openCityStage(page, cityUrl, webglWarnings);
+          await orbitCityStage(page, preset);
+          await waitForVisualSettle(page, "#cb-three-stage", `City stage (${preset.name})`);
+          const fileName = `city-stage-${preset.name}.png`;
+          const screenshotPath = path.join(outputDir, fileName);
+          await page.locator("#cb-three-stage").screenshot({ path: screenshotPath });
+          cityAngleScreenshots[preset.name] = path.relative(rootDir, screenshotPath);
+        }
+      }
 
       const manifest = {
         generatedAt: new Date().toISOString(),
@@ -397,6 +444,7 @@ async function main() {
           world: path.relative(rootDir, worldScreenshotPath),
           city: path.relative(rootDir, cityScreenshotPath),
           cityStage: path.relative(rootDir, cityStageScreenshotPath),
+          cityStageAngles: cityAngleScreenshots,
         },
         renderer: {
           cityStageMode: stageInfo.mode,
@@ -409,6 +457,9 @@ async function main() {
       console.log(`- ${manifest.screenshots.world}`);
       console.log(`- ${manifest.screenshots.city}`);
       console.log(`- ${manifest.screenshots.cityStage}`);
+      for (const anglePath of Object.values(manifest.screenshots.cityStageAngles)) {
+        console.log(`- ${anglePath}`);
+      }
       console.log(`- ${path.relative(rootDir, manifestPath)}`);
     } finally {
       await browser.close();
