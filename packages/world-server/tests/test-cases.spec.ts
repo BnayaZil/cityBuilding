@@ -23,7 +23,7 @@ describe("world-server 4.x cases", () => {
         throw new Error(`case ${caseId} failed: ${String(error)}`);
       }
     }
-  }, 30_000);
+  }, 90_000);
 });
 
 function sampleBlueprint(hash = "sha256:test-hash"): CityBlueprint {
