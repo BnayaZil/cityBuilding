@@ -65,7 +65,7 @@ const CITY_ROW_LIMIT = 56;
 const BUILDING_WIDTH = 1.35;
 const BUILDING_DEPTH = 1.35;
 const BUILDING_NEIGHBOR_GAP = 0.34;
-const DISTRICT_ROAD_WIDTH = 1.05;
+const DISTRICT_ROAD_WIDTH = 0.72;
 
 function districtKey(filePath: string): string {
   const parts = filePath.split("/").filter(Boolean);

@@ -126,7 +126,7 @@ function createBuildingPrisms(city: CitySummary): IsoPrism[] {
   const seed = stableHash(`${city.id}:${city.files_count}:${city.symbols_count}`);
   const rng = createSeededRng(seed);
   const symbolsPerFile = city.symbols_count / Math.max(1, city.files_count);
-  const baseHeight = clamp(0.95 + Math.sqrt(symbolsPerFile) * 0.42, 0.95, 2.8);
+  const baseHeight = clamp(0.9 + Math.sqrt(symbolsPerFile) * 0.38, 0.9, 2.5);
   const buildingCount = clamp(Math.round(city.files_count / 4) + 3, 4, 13);
 
   const lotSlots: Array<{ x: number; z: number }> = [];
@@ -148,7 +148,7 @@ function createBuildingPrisms(city: CitySummary): IsoPrism[] {
     lotSlots[swapIndex] = current;
   }
 
-  const palette = [0xeef3fb, 0xe5edf9, 0xd7e3f5, 0xc8d9f0, 0xb8cde9];
+  const palette = [0xf7f3f9, 0xf0ecf5, 0xe9e6ef, 0xe4e6f0, 0xdde3f1];
   const prisms: IsoPrism[] = [];
   for (let index = 0; index < Math.min(buildingCount, lotSlots.length); index += 1) {
     const lot = lotSlots[index]!;
@@ -156,19 +156,34 @@ function createBuildingPrisms(city: CitySummary): IsoPrism[] {
     const width = 0.9 + slotNoise * 0.34;
     const depth = 0.9 + rng() * 0.28;
     const heightBoost = index < 3 ? 0.7 + rng() * 0.9 : rng() * 0.7;
-    const height = clamp(baseHeight + heightBoost, 1.0, 4.6);
+    const height = clamp(baseHeight + heightBoost, 1.0, 4.2);
     const colorHex = palette[(index + (seed % palette.length)) % palette.length]!;
-    prisms.push({
+    const buildingPrism: IsoPrism = {
       x: lot.x + (rng() - 0.5) * 0.18,
       z: lot.z + (rng() - 0.5) * 0.18,
       width,
       depth,
       height,
-      topColor: tint(colorHex, 1.08),
-      leftColor: tint(colorHex, 0.84),
-      rightColor: tint(colorHex, 0.69),
-      strokeColor: "rgba(54, 88, 138, 0.42)",
-    });
+      topColor: tint(colorHex, 1.04),
+      leftColor: tint(colorHex, 0.9),
+      rightColor: tint(colorHex, 0.78),
+      strokeColor: "rgba(88, 98, 126, 0.32)",
+    };
+    prisms.push(buildingPrism);
+
+    if (height > 3 && rng() > 0.64) {
+      prisms.push({
+        x: buildingPrism.x + (rng() - 0.5) * 0.16,
+        z: buildingPrism.z + (rng() - 0.5) * 0.16,
+        width: 0.08,
+        depth: 0.08,
+        height: 0.68 + rng() * 0.42,
+        topColor: "rgb(149 154 168)",
+        leftColor: "rgb(126 131 146)",
+        rightColor: "rgb(114 120 134)",
+        strokeColor: "rgba(86, 94, 110, 0.45)",
+      });
+    }
   }
   return prisms;
 }
@@ -182,35 +197,79 @@ function createBasePrisms(city: CitySummary): IsoPrism[] {
     {
       x: 5.0,
       z: 3.3,
-      width: 10.2,
-      depth: 7.0,
-      height: 0.32,
-      topColor: "rgb(192 209 234)",
-      leftColor: "rgb(142 165 201)",
-      rightColor: "rgb(122 146 184)",
-      strokeColor: "rgba(66, 90, 126, 0.44)",
+      width: 10.9,
+      depth: 7.7,
+      height: 0.2,
+      topColor: "rgb(198 152 35)",
+      leftColor: "rgb(161 121 27)",
+      rightColor: "rgb(142 107 25)",
+      strokeColor: "rgba(108, 80, 18, 0.45)",
     },
     {
       x: 5.0,
       z: 3.3,
-      width: 8.5,
-      depth: 1.05,
-      height: 0.06,
-      topColor: "rgb(123 132 151)",
-      leftColor: "rgb(93 102 120)",
-      rightColor: "rgb(86 94 112)",
-      strokeColor: "rgba(52, 62, 78, 0.35)",
+      width: 10.4,
+      depth: 7.2,
+      height: 0.28,
+      topColor: "rgb(214 169 39)",
+      leftColor: "rgb(176 136 31)",
+      rightColor: "rgb(159 122 29)",
+      strokeColor: "rgba(114, 86, 23, 0.38)",
     },
     {
       x: 5.0,
       z: 3.3,
-      width: 1.06,
+      width: 10.0,
+      depth: 6.8,
+      height: 0.36,
+      topColor: "rgb(200 197 206)",
+      leftColor: "rgb(160 157 170)",
+      rightColor: "rgb(143 141 154)",
+      strokeColor: "rgba(86, 84, 96, 0.34)",
+    },
+    {
+      x: 5.0,
+      z: 3.3,
+      width: 8.4,
+      depth: 1.04,
+      height: 0.07,
+      topColor: "rgb(126 133 151)",
+      leftColor: "rgb(97 104 122)",
+      rightColor: "rgb(88 95 113)",
+      strokeColor: "rgba(52, 62, 78, 0.36)",
+    },
+    {
+      x: 5.0,
+      z: 3.3,
+      width: 1.04,
       depth: 5.7,
-      height: 0.06,
-      topColor: "rgb(123 132 151)",
-      leftColor: "rgb(93 102 120)",
-      rightColor: "rgb(86 94 112)",
-      strokeColor: "rgba(52, 62, 78, 0.35)",
+      height: 0.07,
+      topColor: "rgb(126 133 151)",
+      leftColor: "rgb(97 104 122)",
+      rightColor: "rgb(88 95 113)",
+      strokeColor: "rgba(52, 62, 78, 0.36)",
+    },
+    {
+      x: 5.0,
+      z: 3.3,
+      width: 8.1,
+      depth: 0.08,
+      height: 0.08,
+      topColor: "rgb(236 239 246)",
+      leftColor: "rgb(206 211 223)",
+      rightColor: "rgb(194 199 212)",
+      strokeColor: "rgba(129, 138, 156, 0.2)",
+    },
+    {
+      x: 5.0,
+      z: 3.3,
+      width: 0.08,
+      depth: 5.4,
+      height: 0.08,
+      topColor: "rgb(236 239 246)",
+      leftColor: "rgb(206 211 223)",
+      rightColor: "rgb(194 199 212)",
+      strokeColor: "rgba(129, 138, 156, 0.2)",
     },
     {
       x: parkInsetX,
@@ -249,18 +308,18 @@ export function renderWorldIslandPreview(canvas: HTMLCanvasElement, city: CitySu
   const sceneSpan = sceneWidth + sceneDepth;
   const maxHeightHint = 4.8;
   const scaleX = Math.min(
-    (width * 0.82) / sceneSpan,
-    (height * 0.68) / (sceneSpan * 0.42 + maxHeightHint * 0.75),
-    14,
+    (width * 0.78) / sceneSpan,
+    (height * 0.62) / (sceneSpan * 0.42 + maxHeightHint * 0.72),
+    12.8,
   );
   const scaleY = scaleX * 0.42;
-  const verticalScale = scaleX * 0.75;
+  const verticalScale = scaleX * 0.72;
   const projection = {
     sx: scaleX,
     sy: scaleY,
     vz: verticalScale,
     ox: width / 2,
-    oy: height * 0.64,
+    oy: height * 0.6,
   };
 
   const shadowGradient = context.createRadialGradient(
@@ -271,8 +330,8 @@ export function renderWorldIslandPreview(canvas: HTMLCanvasElement, city: CitySu
     height * 0.69,
     width * 0.38,
   );
-  shadowGradient.addColorStop(0, "rgba(18, 43, 84, 0.28)");
-  shadowGradient.addColorStop(1, "rgba(18, 43, 84, 0)");
+  shadowGradient.addColorStop(0, "rgba(16, 38, 76, 0.22)");
+  shadowGradient.addColorStop(1, "rgba(16, 38, 76, 0)");
   context.fillStyle = shadowGradient;
   context.fillRect(0, height * 0.42, width, height * 0.42);
 
