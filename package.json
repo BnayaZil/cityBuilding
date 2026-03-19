@@ -13,6 +13,7 @@
     "generate:types": "cargo run -p city-building-schema --bin export-schema -- packages/shared/src/generated && node scripts/generate-types.mjs",
     "generate:test-index": "node scripts/generate-test-case-index.mjs",
     "schema:check": "cargo test -p city-building-scanner-core case_output_matches_city_blueprint_schema",
+    "deps:age-check": "node scripts/check-dependency-age.mjs",
     "bootstrap:local": "node scripts/bootstrap-local.mjs",
     "capture:3d": "node scripts/capture-3d-screenshots.mjs",
     "capture:3d:install": "npx playwright install chromium",
